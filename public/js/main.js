@@ -54,6 +54,16 @@ const cleanupInput = setupInputHandler(canvas, (tap) => {
             if (hit) {
                 handleHit(hit.shape, hit.result, tap.x, tap.y);
             }
+            else {
+                // Tapped empty space — small penalty
+                combo = 0;
+                multiplier = 1.0;
+                prevComboMilestone = 0;
+                collectAllActive = false;
+                registerMiss(errorMeter);
+                triggerFizzle(particles, tap.x, tap.y);
+                playMissSound();
+            }
             break;
         }
         case GameState.GameOver:
@@ -73,30 +83,21 @@ window.addEventListener('keydown', (e) => {
 });
 // ── Hit handling ──────────────────────────────────────────────
 function handleHit(shape, result, x, y) {
-    // Taboo check: tapping a forbidden shape = always miss
+    // Taboo check
     if (checkTabooHit(shape, tabooState)) {
         combo = 0;
         multiplier = 1.0;
         prevComboMilestone = 0;
         collectAllActive = false;
         registerMiss(errorMeter);
-        registerMiss(errorMeter); // Double penalty!
-        triggerFizzle(particles, x, y);
-        playMissSound();
-        playTabooWarning();
-        return;
-    }
-    if (result === 'miss') {
-        combo = 0;
-        multiplier = 1.0;
-        prevComboMilestone = 0;
-        collectAllActive = false;
         registerMiss(errorMeter);
         triggerFizzle(particles, x, y);
         playMissSound();
+        playTabooWarning();
+        addFloatingText(x, y, '🚫 TABOO!', '#ff4444');
         return;
     }
-    // Collect-all mode: one tap takes all!
+    // Collect-all mode
     if (collectAllActive) {
         const collected = shapes.length;
         combo += collected;
@@ -109,9 +110,10 @@ function handleHit(shape, result, x, y) {
         registerHit(errorMeter);
         pushTap(shape.geometry, 'perfect');
         playPerfectSound(combo);
+        addFloatingText(x, y, `+${bonus} ALL!`, '#FFD700');
         return;
     }
-    // Remove shape, spawn new one
+    // Remove shape, spawn new
     shapes = shapes.filter((s) => s.id !== shape.id);
     shapes.push(spawnRandomShape(canvas.width, canvas.height, score));
     combo++;
@@ -120,18 +122,22 @@ function handleHit(shape, result, x, y) {
     score += points;
     registerHit(errorMeter);
     pushTap(shape.geometry, result);
+    // Floating score text
+    const label = result === 'perfect' ? `+${points} PERFECT!` : `+${points}`;
+    const color = result === 'perfect' ? '#FFD700' : '#ffffff';
+    addFloatingText(x, y, label, color);
     // Audio
     if (result === 'perfect')
         playPerfectSound(combo);
     else
         playHitSound(combo);
-    // Check for sacred patterns
+    // Pattern check
     const match = checkRichPatterns(tapHistory, SACRED_PATTERNS, patternState);
     if (match) {
         triggerPattern(match.pattern, shape);
         playPatternSound(match.pattern.id);
     }
-    // Geometry-specific particle burst
+    // Particle burst
     triggerGeometryBurst(particles, x, y, shape.geometry);
     // Combo milestone
     const milestones = [10, 25, 50, 100];
@@ -139,10 +145,38 @@ function handleHit(shape, result, x, y) {
         if (combo >= m && prevComboMilestone < m) {
             triggerComboBurst(particles, x, y, combo);
             playComboMilestone(m);
+            addFloatingText(x, y - 30, `${m} COMBO!`, '#FFD700');
             break;
         }
     }
     prevComboMilestone = combo;
+}
+const floatingTexts = [];
+function addFloatingText(x, y, text, color) {
+    floatingTexts.push({ x, y, text, color, life: 1.0 });
+}
+function updateFloatingTexts(delta) {
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const ft = floatingTexts[i];
+        ft.y -= 40 * delta; // Float upward
+        ft.life -= delta * 1.2;
+        if (ft.life <= 0)
+            floatingTexts.splice(i, 1);
+    }
+}
+function renderFloatingTexts(ctx) {
+    for (const ft of floatingTexts) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, ft.life);
+        ctx.font = `bold ${Math.min(canvas.width, canvas.height) * 0.035}px Inter, system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = ft.color;
+        ctx.shadowColor = ft.color;
+        ctx.shadowBlur = 8;
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
 }
 function pushTap(geometry, result) {
     tapHistory.push({
@@ -230,6 +264,8 @@ function renderPlay() {
     renderShapes(ctx, shapes);
     renderTabooWarning(ctx, shapes, tabooState, gameTime);
     updateParticles(particles, ctx, loop.delta);
+    // Floating score texts (above particles)
+    renderFloatingTexts(ctx);
     // HUD: score + multiplier (top-left)
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
     ctx.font = `bold ${Math.min(canvas.width, canvas.height) * 0.025}px Inter, system-ui, sans-serif`;
@@ -404,6 +440,7 @@ startGameLoop(loop, {
                 updateErrorMeter(errorMeter, delta);
                 updatePatternState(patternState, delta);
                 updateTaboo(tabooState, shapes, delta, gameTime);
+                updateFloatingTexts(delta);
                 // Tier-up detection
                 const currentTier = getTier(score);
                 if (currentTier > prevTier) {

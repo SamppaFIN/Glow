@@ -29,10 +29,10 @@ export function getTier(score: number): ShapeTier {
   return 0;
 }
 
-/** Radius scales with tier, with some randomness */
+/** Radius scales with tier */
 export function getRadiusForTier(tier: ShapeTier, baseSize: number): number {
-  const multipliers = { 0: 0.7, 1: 0.85, 2: 1.0, 3: 1.2 };
-  return baseSize * multipliers[tier] * (0.9 + Math.random() * 0.2);
+  const multipliers = { 0: 0.7, 1: 0.85, 2: 1.0, 3: 1.15 };
+  return baseSize * multipliers[tier] * (0.85 + Math.random() * 0.3);
 }
 
 /** Pulse speed increases with tier (harder to time) */
@@ -191,6 +191,6 @@ export function spawnRandomShape(
   const margin = 100;
   const x = margin + Math.random() * (canvasWidth - margin * 2);
   const y = margin + Math.random() * (canvasHeight - margin * 2);
-  const baseSize = Math.min(canvasWidth, canvasHeight) * 0.08;
+  const baseSize = Math.min(canvasWidth, canvasHeight) * 0.045; // Small on mobile
   return createShape(geometry, tier, x, y, getRadiusForTier(tier, baseSize));
 }

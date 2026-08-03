@@ -51,11 +51,10 @@ export function setupInputHandler(
 
 /** Timing window thresholds as fraction of pulse cycle */
 export const TimingWindow = {
-  /** < 25% off peak = perfect */
-  perfect: 0.25,
-  /** < 50% off peak = good */
-  good: 0.50,
-  /** Anything outside = miss */
+  /** < 30% off peak = perfect */
+  perfect: 0.30,
+  /** Anything on the shape = at least good */
+  good: 1.0,  // Always good if you tap the shape!
 } as const;
 
 export type HitResult = 'perfect' | 'good' | 'miss';
@@ -78,27 +77,23 @@ export function evaluateTap(
   return null;
 }
 
-/** Simple circle hit-test for shapes */
+/** Simple circle hit-test for shapes — generous for mobile */
 function isPointInShape(px: number, py: number, shape: Shape): boolean {
   const dx = px - shape.x;
   const dy = py - shape.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  return dist <= shape.radius * 1.5; // Generous hitbox for mobile
+  return dist <= shape.radius * 2.0; // Very generous hitbox
 }
 
 /**
  * Evaluate timing based on shape's current pulse phase.
- * Phase 0 = peak (best time to tap).
+ * Phase 0 = peak. Any tap on the shape is at least 'good'.
  */
 function evaluateTiming(shape: Shape): HitResult {
-  // Normalize phase to [0, 1) and get distance from peak (0)
   const phase = ((shape.pulsePhase % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-  // Convert to a 0→1→0 cycle: 0 at peak, 1 at trough
   const distFromPeak = Math.abs(Math.sin(phase));
-
   if (distFromPeak <= TimingWindow.perfect) return 'perfect';
-  if (distFromPeak <= TimingWindow.good) return 'good';
-  return 'miss';
+  return 'good'; // Tap on shape = always at least good!
 }
 
 /**
