@@ -1,121 +1,96 @@
 /**
  * Audio Feedback — Web Audio API generated sounds.
- * Phase 5: No external files, everything synthesized at runtime.
- * Tiny bundle, instant playback, works offline.
+ * All oscillators tracked for instant cleanup. Crash-safe.
  */
 
 let audioCtx: AudioContext | null = null;
 let muted = false;
+let audioCrashed = false;
+const activeOscs: OscillatorNode[] = [];
+const activeTimers: ReturnType<typeof setTimeout>[] = [];
 
-function ctx(): AudioContext {
+function getCtx(): AudioContext | null {
+  if (audioCrashed) return null;
   if (!audioCtx) {
-    audioCtx = new AudioContext();
+    try { audioCtx = new AudioContext(); } catch { audioCrashed = true; return null; }
   }
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
   return audioCtx;
 }
 
-export function isMuted(): boolean { return muted; }
+export function isMuted(): boolean { return muted || audioCrashed; }
 export function toggleMute(): boolean { muted = !muted; return muted; }
 export function setMuted(m: boolean): void { muted = m; }
+export function unlockAudio(): void { if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {}); }
 
-/** Resume audio context after user gesture (required by browsers) */
-export function unlockAudio(): void {
-  if (audioCtx?.state === 'suspended') {
-    audioCtx.resume();
-  }
+/** Kill every oscillator, timer, and the audio context. Call on game over / crash. */
+export function killAllAudio(): void {
+  for (const o of activeOscs) { try { o.stop(); o.disconnect(); } catch { /* */ } }
+  activeOscs.length = 0;
+  for (const t of activeTimers) clearTimeout(t);
+  activeTimers.length = 0;
+  stopPulse();
+  if (audioCtx) { try { audioCtx.close(); } catch { /* */ } audioCtx = null; }
+  audioCrashed = false;
 }
 
-// ── Sound generators ──────────────────────────────────────────
+function safeTimeout(fn: () => void, ms: number): void {
+  const t = setTimeout(() => {
+    const i = activeTimers.indexOf(t); if (i >= 0) activeTimers.splice(i, 1);
+    fn();
+  }, ms);
+  activeTimers.push(t);
+}
 
-function playTone(freq: number, duration: number, type: OscillatorType = 'sine', volume = 0.15): void {
-  if (muted) return;
+function playTone(freq: number, dur: number, type: OscillatorType = 'sine', vol = 0.10): void {
+  if (muted || audioCrashed) return;
+  const c = getCtx(); if (!c) { audioCrashed = true; return; }
   try {
-    const c = ctx();
     const osc = c.createOscillator();
     const gain = c.createGain();
     osc.type = type;
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(volume, c.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
-    osc.connect(gain);
-    gain.connect(c.destination);
-    osc.start(c.currentTime);
-    osc.stop(c.currentTime + duration);
-  } catch { /* Audio not available */ }
+    osc.frequency.value = Math.max(20, Math.min(freq, 8000));
+    gain.gain.setValueAtTime(vol, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
+    osc.connect(gain); gain.connect(c.destination);
+    activeOscs.push(osc);
+    osc.start(c.currentTime); osc.stop(c.currentTime + dur);
+    osc.onended = () => {
+      const i = activeOscs.indexOf(osc); if (i >= 0) activeOscs.splice(i, 1);
+      try { osc.disconnect(); gain.disconnect(); } catch { /* */ }
+    };
+  } catch { audioCrashed = true; killAllAudio(); }
 }
 
-/** Rising tone for hits — higher pitch with combo */
-export function playHitSound(combo: number): void {
-  const baseFreq = 400 + combo * 15; // Rises with combo
-  playTone(Math.min(baseFreq, 1200), 0.15, 'sine', 0.12);
-}
-
-/** Perfect hit — brighter chime */
+export function playHitSound(combo: number): void { playTone(Math.min(400 + combo * 15, 1200), 0.12, 'sine', 0.10); }
 export function playPerfectSound(combo: number): void {
-  const baseFreq = 600 + combo * 20;
-  playTone(Math.min(baseFreq, 1600), 0.12, 'triangle', 0.1);
-  // Harmony note
-  setTimeout(() => playTone(Math.min(baseFreq * 1.5, 2400), 0.1, 'sine', 0.06), 50);
+  const f = Math.min(600 + combo * 20, 1600); playTone(f, 0.10, 'triangle', 0.08);
+  safeTimeout(() => playTone(Math.min(f * 1.5, 2400), 0.08, 'sine', 0.04), 50);
+}
+export function playMissSound(): void { playTone(80, 0.15, 'sawtooth', 0.05); }
+export function playTabooWarning(): void { playTone(120, 0.25, 'sine', 0.03); }
+
+export function playComboMilestone(m: number): void {
+  const n = [523, 659, 784, 1047]; const c = m >= 100 ? 4 : m >= 50 ? 3 : 2;
+  for (let i = 0; i < c; i++) safeTimeout(() => playTone(n[i], 0.15, 'triangle', 0.08), i * 80);
 }
 
-/** Low thud for miss */
-export function playMissSound(): void {
-  playTone(80, 0.2, 'sawtooth', 0.08);
+export function playPatternSound(p: string): void {
+  const notes: Record<string, number[]> = { seed_of_life: [523,659,784,1047,1319], vesica_piscis: [440,554,659], metatrons_cube: [262,330,392,523,659,784,1047] };
+  (notes[p] ?? [523,659,784]).forEach((n, i) => safeTimeout(() => playTone(n, 0.25, 'triangle', 0.06), i * 100));
 }
 
-/** Taboo warning hum */
-export function playTabooWarning(): void {
-  playTone(120, 0.3, 'sine', 0.04);
-}
-
-/** Combo milestone arpeggio */
-export function playComboMilestone(milestone: number): void {
-  const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
-  const count = milestone >= 100 ? 4 : milestone >= 50 ? 3 : 2;
-  for (let i = 0; i < count; i++) {
-    setTimeout(() => playTone(notes[i], 0.2, 'triangle', 0.1), i * 80);
-  }
-}
-
-/** Secret pattern activation fanfare */
-export function playPatternSound(pattern: string): void {
-  const notes: Record<string, number[]> = {
-    seed_of_life: [523, 659, 784, 1047, 1319],
-    vesica_piscis: [440, 554, 659],
-    metatrons_cube: [262, 330, 392, 523, 659, 784, 1047],
-  };
-  const seq = notes[pattern] ?? [523, 659, 784];
-  for (let i = 0; i < seq.length; i++) {
-    setTimeout(() => playTone(seq[i], 0.3, 'triangle', 0.08), i * 100);
-  }
-}
-
-/** Level-up fanfare */
 export function playLevelUpSound(): void {
-  const notes = [523, 659, 784, 1047, 1319];
-  for (let i = 0; i < notes.length; i++) {
-    setTimeout(() => playTone(notes[i], 0.25, 'triangle', 0.1), i * 120);
-  }
+  [523,659,784,1047,1319].forEach((n, i) => safeTimeout(() => playTone(n, 0.2, 'triangle', 0.08), i * 120));
 }
 
-/** Game over descending tone */
 export function playGameOverSound(): void {
-  const notes = [440, 370, 330, 262];
-  for (let i = 0; i < notes.length; i++) {
-    setTimeout(() => playTone(notes[i], 0.4, 'sawtooth', 0.06), i * 200);
-  }
+  [440,370,330,262].forEach((n, i) => safeTimeout(() => playTone(n, 0.35, 'sawtooth', 0.04), i * 200));
 }
 
-/** Background pulse — subtle rhythmic tick */
 let pulseInterval: ReturnType<typeof setInterval> | null = null;
-
-export function startPulse(intervalMs = 800): void {
+export function startPulse(ms = 800): void {
   stopPulse();
-  pulseInterval = setInterval(() => {
-    if (!muted) playTone(60, 0.05, 'sine', 0.02);
-  }, intervalMs);
+  pulseInterval = setInterval(() => { if (!muted && !audioCrashed && audioCtx?.state === 'running') playTone(60, 0.04, 'sine', 0.015); }, ms);
 }
-
-export function stopPulse(): void {
-  if (pulseInterval) { clearInterval(pulseInterval); pulseInterval = null; }
-}
+export function stopPulse(): void { if (pulseInterval) { clearInterval(pulseInterval); pulseInterval = null; } }

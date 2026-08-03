@@ -49,6 +49,7 @@ import {
   playPatternSound,
   playLevelUpSound,
   playGameOverSound,
+  killAllAudio,
   startPulse,
   stopPulse,
 } from './audio/audio.js';
@@ -536,6 +537,8 @@ function startGame(): void {
 function gameOver(): void {
   stopPulse();
   playGameOverSound();
+  // Schedule full audio cleanup after game over sound plays
+  setTimeout(() => killAllAudio(), 2000);
   startNameEntry();
 }
 
