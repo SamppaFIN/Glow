@@ -10,6 +10,7 @@ export enum GameState {
   Playing = 'playing',
   Paused = 'paused',
   GameOver = 'gameover',
+  NameEntry = 'nameentry',
   Bonus = 'bonus',
 }
 
@@ -137,7 +138,10 @@ function isValidTransition(from: GameState, to: GameState): boolean {
       // Paused -> Playing (resume) | Menu (quit)
       return to === GameState.Playing || to === GameState.Menu;
     case GameState.GameOver:
-      // GameOver -> Menu (score submit)
+      // GameOver -> NameEntry (score submit) | Menu (skip)
+      return to === GameState.NameEntry || to === GameState.Menu;
+    case GameState.NameEntry:
+      // NameEntry -> Menu (saved)
       return to === GameState.Menu;
     case GameState.Bonus:
       // Bonus -> Playing (bonus ends)

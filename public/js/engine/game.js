@@ -10,6 +10,7 @@ export var GameState;
     GameState["Playing"] = "playing";
     GameState["Paused"] = "paused";
     GameState["GameOver"] = "gameover";
+    GameState["NameEntry"] = "nameentry";
     GameState["Bonus"] = "bonus";
 })(GameState || (GameState = {}));
 /** Game configuration constants */
@@ -101,7 +102,10 @@ function isValidTransition(from, to) {
             // Paused -> Playing (resume) | Menu (quit)
             return to === GameState.Playing || to === GameState.Menu;
         case GameState.GameOver:
-            // GameOver -> Menu (score submit)
+            // GameOver -> NameEntry (score submit) | Menu (skip)
+            return to === GameState.NameEntry || to === GameState.Menu;
+        case GameState.NameEntry:
+            // NameEntry -> Menu (saved)
             return to === GameState.Menu;
         case GameState.Bonus:
             // Bonus -> Playing (bonus ends)

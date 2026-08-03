@@ -136,7 +136,14 @@ const cleanupInput = setupInputHandler(canvas, (tap) => {
       break;
     }
     case GameState.GameOver:
-      transitionState(loop, GameState.Menu);
+      startNameEntry();
+      break;
+    case GameState.NameEntry:
+      if (nameEntrySaved) {
+        transitionState(loop, GameState.Menu);
+      } else {
+        handleNameEntryTap(tap.x, tap.y);
+      }
       break;
   }
 });
@@ -315,31 +322,54 @@ function renderMenu(): void {
   ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
   ctx.font = `${Math.min(W(), H()) * 0.025}px Inter, system-ui, sans-serif`;
   ctx.fillText('Tap to start', W() / 2, H() / 2 + 30);
+
+  // Top scores
+  const scores = loadHighScores();
+  if (scores.length > 0) {
+    const y0 = H() * 0.65;
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = `${Math.min(W(), H()) * 0.018}px Inter, system-ui, sans-serif`;
+    ctx.fillText('🏆 High Scores', W() / 2, y0 - 16);
+    for (let i = 0; i < Math.min(3, scores.length); i++) {
+      const s = scores[i];
+      const icon = GEO_ICONS[s.icon] ?? '🌸';
+      ctx.fillStyle = i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : '#CD7F32';
+      ctx.font = `${Math.min(W(), H()) * 0.02}px Inter, system-ui, sans-serif`;
+      ctx.fillText(`${icon} ${s.initials} — ${s.score}`, W() / 2, y0 + i * 22);
+    }
+  }
 }
 
 function renderGameOver(): void {
   ctx.fillStyle = '#0a0a1a';
   ctx.fillRect(0, 0, W(), H());
-  const reason = shapes.length >= MAX_SHAPES ? 'Screen overflowed!'
-    : isGameOver(errorMeter) ? 'Too many misses!' : 'Game Over';
+  const reason = shapes.length >= MAX_SHAPES ? 'Screen overflow!'
+    : isGameOver(errorMeter) ? 'Too many misses' : 'Game Over';
+
   ctx.fillStyle = 'rgba(255, 100, 100, 0.9)';
   ctx.font = `bold ${Math.min(W(), H()) * 0.05}px Inter, system-ui, sans-serif`;
   ctx.textAlign = 'center';
-  ctx.fillText(reason, W() / 2, H() / 2 - 40);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-  ctx.font = `${Math.min(W(), H()) * 0.035}px Inter, system-ui, sans-serif`;
-  ctx.fillText(`Score: ${score}`, W() / 2, H() / 2 + 5);
-  const mins = Math.floor(gameTime / 60);
-  const secs = Math.floor(gameTime % 60);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.fillText('💀 GAME OVER', W() / 2, H() * 0.15);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
   ctx.font = `${Math.min(W(), H()) * 0.025}px Inter, system-ui, sans-serif`;
-  ctx.fillText(`Survived: ${mins}:${secs.toString().padStart(2, '0')}`, W() / 2, H() / 2 + 40);
-  const best = getTopScore();
-  ctx.fillStyle = score >= best && score > 0 ? '#FFD700' : 'rgba(255,255,255,0.5)';
-  ctx.fillText(score >= best && score > 0 ? `🏆 NEW BEST: ${score}` : `Best: ${best}`, W() / 2, H() / 2 + 72);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.fillText(reason, W() / 2, H() * 0.22);
+  ctx.fillStyle = '#FFD700';
+  ctx.font = `bold ${Math.min(W(), H()) * 0.04}px Inter, system-ui, sans-serif`;
+  ctx.fillText(`${score}`, W() / 2, H() * 0.30);
+
+  // Patterns discovered this run
+  const discovered = [...patternState.discovered];
+  if (discovered.length > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = `${Math.min(W(), H()) * 0.02}px Inter, system-ui, sans-serif`;
+    const names = discovered.map(id => SACRED_PATTERNS.find(p => p.id === id)?.name ?? id);
+    ctx.fillText('Discovered: ' + names.join(', '), W() / 2, H() * 0.38);
+  }
+
+  // Tap to save
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
   ctx.font = `${Math.min(W(), H()) * 0.02}px Inter, system-ui, sans-serif`;
-  ctx.fillText('Tap to return', W() / 2, H() / 2 + 105);
+  ctx.fillText('Tap to save score ⟶', W() / 2, H() * 0.50);
 }
 
 function renderPlay(): void {
@@ -477,23 +507,150 @@ function startGame(): void {
 function gameOver(): void {
   stopPulse();
   playGameOverSound();
-  saveHighScore(score);
-  transitionState(loop, GameState.GameOver);
+  startNameEntry();
 }
 
 // ── High scores ───────────────────────────────────────────────
 const HS_KEY = 'glow_highscores';
-function loadHighScores(): number[] {
-  try { const raw = localStorage.getItem(HS_KEY); return raw ? JSON.parse(raw) : []; }
-  catch { return []; }
+const GEOS = ['flower', 'seed', 'vesica', 'spiral', 'sri', 'metatron'] as const;
+const GEO_ICONS: Record<string, string> = { flower: '🌸', seed: '🌱', vesica: '💧', spiral: '🌀', sri: '🔥', metatron: '🔮' };
+
+interface HighScore {
+  score: number; time: number; initials: string; icon: string;
+  patterns: string[]; date: string;
 }
-function saveHighScore(s: number): void {
-  const scores = loadHighScores(); scores.push(s);
-  scores.sort((a, b) => b - a);
-  localStorage.setItem(HS_KEY, JSON.stringify(scores.slice(0, 5)));
+function loadHighScores(): HighScore[] {
+  try {
+    const raw = localStorage.getItem(HS_KEY);
+    if (!raw) return [];
+    const parsed: HighScore[] = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveHighScore(entry: HighScore): void {
+  const scores: HighScore[] = loadHighScores(); scores.push(entry);
+  scores.sort((a: HighScore, b: HighScore) => b.score - a.score);
+  localStorage.setItem(HS_KEY, JSON.stringify(scores.slice(0, 10)));
 }
 function getTopScore(): number {
-  const s = loadHighScores(); return s.length > 0 ? s[0] : 0;
+  const s = loadHighScores(); return s.length > 0 ? s[0].score : 0;
+}
+
+// ── Name entry state ──────────────────────────────────────────
+let nameEntryInitials = ['A', 'A', 'A'];
+let nameEntrySlot = 0;
+let nameEntryIconIdx = 0;
+let nameEntrySaved = false;
+
+function startNameEntry(): void {
+  nameEntryInitials = ['A', 'A', 'A'];
+  nameEntrySlot = 0;
+  nameEntryIconIdx = 0;
+  nameEntrySaved = false;
+  transitionState(loop, GameState.NameEntry);
+}
+
+function handleNameEntryTap(tapX: number, tapY: number): void {
+  const w = W(), h = H();
+  // Save button area (bottom center)
+  if (tapY > h * 0.75 && tapX > w * 0.3 && tapX < w * 0.7) {
+    if (!nameEntrySaved) {
+      const entry: HighScore = {
+        score, time: gameTime,
+        initials: nameEntryInitials.join(''),
+        icon: GEOS[nameEntryIconIdx],
+        patterns: [...patternState.discovered],
+        date: new Date().toLocaleDateString('fi'),
+      };
+      saveHighScore(entry);
+      nameEntrySaved = true;
+    }
+    return;
+  }
+  // Icon area (tap to cycle)
+  if (tapY > h * 0.42 && tapY < h * 0.62 && tapX > w * 0.35 && tapX < w * 0.65) {
+    nameEntryIconIdx = (nameEntryIconIdx + 1) % GEOS.length;
+    return;
+  }
+  // Letter slots (3 zones at top-center)
+  const slotW = w * 0.12;
+  const startX = w / 2 - slotW * 1.5;
+  for (let i = 0; i < 3; i++) {
+    const sx = startX + i * slotW;
+    if (tapX > sx && tapX < sx + slotW && tapY > h * 0.22 && tapY < h * 0.38) {
+      nameEntrySlot = i;
+      nameEntryInitials[i] = cycleLetter(nameEntryInitials[i]);
+      return;
+    }
+  }
+}
+
+function cycleLetter(c: string): string {
+  const idx = c.charCodeAt(0) - 65;
+  return String.fromCharCode(65 + ((idx + 1) % 26));
+}
+
+function renderNameEntry(): void {
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(0, 0, W(), H());
+  const w = W(), h = H();
+
+  ctx.fillStyle = '#FFD700';
+  ctx.font = `bold ${Math.min(w, h) * 0.04}px Inter, system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText('🏆 NEW HIGH SCORE!', w / 2, h * 0.1);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `${Math.min(w, h) * 0.03}px Inter, system-ui, sans-serif`;
+  ctx.fillText(`Score: ${score}  ·  Survived: ${Math.floor(gameTime / 60)}:${String(Math.floor(gameTime % 60)).padStart(2, '0')}`, w / 2, h * 0.16);
+
+  // Initials
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = `${Math.min(w, h) * 0.02}px Inter, system-ui, sans-serif`;
+  ctx.fillText('Tap letters to change', w / 2, h * 0.2);
+  const slotW = w * 0.12;
+  const startX = w / 2 - slotW * 1.5;
+  for (let i = 0; i < 3; i++) {
+    const sx = startX + i * slotW;
+    const active = i === nameEntrySlot;
+    ctx.fillStyle = active ? 'rgba(255,215,0,0.2)' : 'rgba(255,255,255,0.05)';
+    ctx.fillRect(sx, h * 0.22, slotW, h * 0.15);
+    ctx.strokeStyle = active ? '#FFD700' : 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sx, h * 0.22, slotW, h * 0.15);
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.min(w, h) * 0.06}px Inter, system-ui, sans-serif`;
+    ctx.fillText(nameEntryInitials[i], sx + slotW / 2, h * 0.33);
+  }
+
+  // Geometry icon selector
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = `${Math.min(w, h) * 0.02}px Inter, system-ui, sans-serif`;
+  ctx.fillText('Tap icon to change', w / 2, h * 0.4);
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.fillRect(w * 0.35, h * 0.42, w * 0.3, h * 0.2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.strokeRect(w * 0.35, h * 0.42, w * 0.3, h * 0.2);
+  ctx.font = `${Math.min(w, h) * 0.1}px Inter, system-ui, sans-serif`;
+  ctx.fillText(GEO_ICONS[GEOS[nameEntryIconIdx]], w / 2, h * 0.56);
+
+  // Save button
+  const btnY = h * 0.76;
+  ctx.fillStyle = nameEntrySaved ? 'rgba(78,205,196,0.3)' : 'rgba(255,215,0,0.2)';
+  ctx.fillRect(w * 0.3, btnY, w * 0.4, h * 0.08);
+  ctx.strokeStyle = nameEntrySaved ? '#4ECDC4' : '#FFD700';
+  ctx.strokeRect(w * 0.3, btnY, w * 0.4, h * 0.08);
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.min(w, h) * 0.025}px Inter, system-ui, sans-serif`;
+  ctx.fillText(nameEntrySaved ? '✅ SAVED — Tap to continue' : '💾 SAVE SCORE', w / 2, btnY + h * 0.055);
+
+  // Patterns discovered
+  if (patternState.discovered.size > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = `${Math.min(w, h) * 0.018}px Inter, system-ui, sans-serif`;
+    const names = [...patternState.discovered].map(id => SACRED_PATTERNS.find(p => p.id === id)?.name ?? id);
+    ctx.fillText('Discovered: ' + names.join(', '), w / 2, h * 0.92);
+  }
 }
 
 /** Spawn interval decreases over time — starts slow, accelerates */
@@ -556,6 +713,9 @@ startGameLoop(loop, {
         break;
       case GameState.GameOver:
         renderGameOver();
+        break;
+      case GameState.NameEntry:
+        renderNameEntry();
         break;
     }
   },
