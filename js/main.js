@@ -7,7 +7,7 @@ import { updateParticles, triggerFizzle, triggerGeometryBurst, triggerComboBurst
 import { setupInputHandler, evaluateTap } from './engine/input.js';
 import { generateShapeGrid, spawnRandomShape, updateShapes, renderShapes, getTier, } from './engine/shapes.js';
 import { createTabooState, updateTaboo, checkTabooHit, renderTabooWarning, } from './engine/taboo.js';
-import { unlockAudio, toggleMute, playHitSound, playPerfectSound, playMissSound, playTabooWarning, playComboMilestone, playPatternSound, playGameOverSound, startPulse, stopPulse, } from './audio/audio.js';
+import { unlockAudio, toggleMute, playHitSound, playPerfectSound, playMissSound, playTabooWarning, playComboMilestone, playPatternSound, playGameOverSound, killAllAudio, startPulse, stopPulse, } from './audio/audio.js';
 import { createErrorMeter, registerMiss, registerHit, updateErrorMeter, isGameOver, resetErrorMeter, renderErrorMeter, } from './engine/meter.js';
 import { SACRED_PATTERNS, createPatternState, checkRichPatterns, activatePatternEffect, updatePatternState, } from './engine/patterns.js';
 // ── Canvas setup ──────────────────────────────────────────────
@@ -431,6 +431,8 @@ function startGame() {
 function gameOver() {
     stopPulse();
     playGameOverSound();
+    // Schedule full audio cleanup after game over sound plays
+    setTimeout(() => killAllAudio(), 2000);
     startNameEntry();
 }
 // ── High scores ───────────────────────────────────────────────
