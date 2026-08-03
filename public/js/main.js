@@ -76,7 +76,12 @@ const cleanupInput = setupInputHandler(canvas, (tap) => {
             break;
         }
         case GameState.GameOver:
-            startNameEntry();
+            if (!gameOverReady && gameOverTimer <= 0) {
+                gameOverReady = true;
+            }
+            if (gameOverReady) {
+                startNameEntry();
+            }
             break;
         case GameState.NameEntry:
             if (nameEntrySaved) {
@@ -305,10 +310,31 @@ function renderGameOver() {
             ctx.fillText(`${icon} ${name}: ${count}`, W() / 2, y);
         }
     }
-    // Tap to save
+    // Top scores
+    const scores = loadHighScores();
+    const tapY = H() * 0.90;
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.font = `${Math.min(W(), H()) * 0.02}px Inter, system-ui, sans-serif`;
-    ctx.fillText('Tap to save score ⟶', W() / 2, H() * 0.85);
+    ctx.font = `bold ${Math.min(W(), H()) * 0.016}px Inter, system-ui, sans-serif`;
+    ctx.fillText('🏆 TOP 5', W() / 2, H() * 0.74);
+    ctx.font = `${Math.min(W(), H()) * 0.014}px Inter, system-ui, sans-serif`;
+    for (let i = 0; i < Math.min(5, scores.length); i++) {
+        const s = scores[i];
+        const icon = GEO_ICONS[s.icon] ?? '🌸';
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.fillText(`${icon} ${s.initials}  ${s.score}  ${s.date}`, W() / 2, H() * 0.78 + i * 14);
+    }
+    // Tap prompt
+    if (gameOverReady) {
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${Math.min(W(), H()) * 0.022}px Inter, system-ui, sans-serif`;
+        ctx.fillText('👆 Tap to save score', W() / 2, tapY);
+    }
+    else {
+        const remaining = Math.ceil(gameOverTimer);
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = `${Math.min(W(), H()) * 0.018}px Inter, system-ui, sans-serif`;
+        ctx.fillText(`Wait ${remaining}s...`, W() / 2, tapY);
+    }
 }
 function renderPlay() {
     ctx.fillStyle = '#0a0a1a';
@@ -452,12 +478,17 @@ function startGame() {
     startPulse(800);
     transitionState(loop, GameState.Playing);
 }
+// ── Game over guard (prevent accidental skip) ─────────────────
+let gameOverReady = false;
+let gameOverTimer = 0;
+const GAME_OVER_DELAY = 1.5; // Seconds before tap is accepted
 function gameOver() {
     stopPulse();
     playGameOverSound();
-    // Schedule full audio cleanup after game over sound plays
+    gameOverReady = false;
+    gameOverTimer = GAME_OVER_DELAY;
     setTimeout(() => killAllAudio(), 2000);
-    startNameEntry();
+    transitionState(loop, GameState.GameOver);
 }
 // ── High scores ───────────────────────────────────────────────
 const HS_KEY = 'glow_highscores';
@@ -667,6 +698,11 @@ startGameLoop(loop, {
                 renderPlay();
                 break;
             case GameState.GameOver:
+                if (gameOverTimer > 0) {
+                    gameOverTimer -= delta;
+                    if (gameOverTimer <= 0)
+                        gameOverReady = true;
+                }
                 renderGameOver();
                 break;
             case GameState.NameEntry:
