@@ -99,6 +99,10 @@ const tapHistory: RichTapRecord[] = [];
 const patternState: PatternState = createPatternState();
 let collectAllActive = false;  // Metatron's Cube power-up
 const errorMeter = createErrorMeter();
+// Track geometry taps this run
+const geoTaps: Record<string, number> = {};
+const GEO_NAMES: Record<string, string> = { flower: 'Flower of Life', seed: 'Seed of Life', vesica: 'Vesica Piscis', spiral: 'Golden Spiral', sri: 'Sri Yantra', metatron: "Metatron's Cube" };
+function recordGeoTap(geo: string): void { geoTaps[geo] = (geoTaps[geo] || 0) + 1; }
 let shapes: Shape[] = [];
 let score = 0;
 let combo = 0;
@@ -198,6 +202,7 @@ function handleHit(shape: Shape, result: HitResult, x: number, y: number): void 
   score += points;
   registerHit(errorMeter);
   pushTap(shape.geometry, result);
+  recordGeoTap(shape.geometry);
 
   // Floating score text
   const label = result === 'perfect' ? `+${points} PERFECT!` : `+${points}`;
@@ -360,16 +365,38 @@ function renderGameOver(): void {
   // Patterns discovered this run
   const discovered = [...patternState.discovered];
   if (discovered.length > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = `${Math.min(W(), H()) * 0.02}px Inter, system-ui, sans-serif`;
+    ctx.fillStyle = '#FFD700';
+    ctx.font = `bold ${Math.min(W(), H()) * 0.022}px Inter, system-ui, sans-serif`;
+    ctx.fillText('✦ SECRETS UNLOCKED ✦', W() / 2, H() * 0.36);
     const names = discovered.map(id => SACRED_PATTERNS.find(p => p.id === id)?.name ?? id);
-    ctx.fillText('Discovered: ' + names.join(', '), W() / 2, H() * 0.38);
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = `${Math.min(W(), H()) * 0.018}px Inter, system-ui, sans-serif`;
+    ctx.fillText(names.join('  ·  '), W() / 2, H() * 0.40);
+  }
+
+  // Geometry tap counts
+  const tappedGeos = Object.entries(geoTaps).sort((a, b) => b[1] - a[1]);
+  if (tappedGeos.length > 0) {
+    const y0 = H() * 0.46;
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = `bold ${Math.min(W(), H()) * 0.018}px Inter, system-ui, sans-serif`;
+    ctx.fillText('📊 SHAPES TAPPED', W() / 2, y0);
+    ctx.font = `${Math.min(W(), H()) * 0.016}px Inter, system-ui, sans-serif`;
+    const maxShow = 6;
+    for (let i = 0; i < Math.min(maxShow, tappedGeos.length); i++) {
+      const [geo, count] = tappedGeos[i];
+      const icon = GEO_ICONS[geo] ?? '●';
+      const name = GEO_NAMES[geo] ?? geo;
+      const y = y0 + 16 + i * 16;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText(`${icon} ${name}: ${count}`, W() / 2, y);
+    }
   }
 
   // Tap to save
   ctx.fillStyle = 'rgba(255,255,255,0.3)';
   ctx.font = `${Math.min(W(), H()) * 0.02}px Inter, system-ui, sans-serif`;
-  ctx.fillText('Tap to save score ⟶', W() / 2, H() * 0.50);
+  ctx.fillText('Tap to save score ⟶', W() / 2, H() * 0.85);
 }
 
 function renderPlay(): void {
@@ -493,6 +520,8 @@ function startGame(): void {
   spawnTimer = 0;
   particles.length = 0;
   tapHistory.length = 0;
+  // Reset geo tap counts
+  for (const k of Object.keys(geoTaps)) delete geoTaps[k];
   patternState.cooldowns.clear();
   patternState.lastActivated = null;
   patternState.activationTimer = 0;
