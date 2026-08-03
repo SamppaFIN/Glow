@@ -37,6 +37,13 @@ import {
   type TabooState,
 } from './engine/taboo.js';
 import {
+  createEventState,
+  updateEvents,
+  applyEventToShapes,
+  EVENTS,
+  type EventState,
+} from './engine/events.js';
+import {
   unlockAudio,
   setMuted,
   isMuted,
@@ -116,6 +123,7 @@ let gameTime = 0;
 let spawnTimer = 0;
 const MAX_SHAPES = 15;
 const tabooState: TabooState = createTabooState();
+const eventState: EventState = createEventState();
 
 // ── Input ─────────────────────────────────────────────────────
 const cleanupInput = setupInputHandler(canvas, (tap) => {
@@ -199,7 +207,7 @@ function handleHit(shape: Shape, result: HitResult, x: number, y: number): void 
 
   combo++;
   multiplier = Math.min(1.0 + combo * 0.1, 5.0);
-  const points = Math.round(100 * multiplier * shape.bonusMultiplier);
+  const points = Math.round(100 * multiplier * shape.bonusMultiplier * eventState.scoreMultiplier);
   score += points;
   registerHit(errorMeter);
   pushTap(shape.geometry, result);
@@ -449,6 +457,23 @@ function renderPlay(): void {
     ctx.fillText(`${combo} COMBO`, W() / 2, 60);
   }
 
+  // Random event announcement
+  if (eventState.activeEvent && eventState.eventTimer > 0) {
+    const ev = eventState.activeEvent;
+    const alpha = Math.min(1, eventState.eventTimer);
+    const y = H() * 0.14;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = `bold ${Math.min(W(), H()) * 0.04}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#FFD700';
+    ctx.shadowColor = '#FFD700';
+    ctx.shadowBlur = 15;
+    ctx.fillText(`${ev.emoji} ${ev.name}`, W() / 2, y);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
   // ── Activation messages ───────────────────────────────────
 
   // Sacred pattern activation
@@ -530,6 +555,12 @@ function startGame(): void {
   tabooState.activeIds.clear();
   tabooState.active = false;
   tabooState.nextEventTimer = 30 + Math.random() * 15;
+  // Reset events
+  eventState.activeEvent = null;
+  eventState.eventTimer = 0;
+  eventState.nextEventTimer = 20 + Math.random() * 20;
+  eventState.scoreMultiplier = 1;
+  eventState.pulseMultiplier = 1;
   startPulse(800);
   transitionState(loop, GameState.Playing);
 }
@@ -709,10 +740,23 @@ startGameLoop(loop, {
         break;
       case GameState.Playing:
         gameTime += delta;
-        updateShapes(shapes, delta);
+        const shapedDelta = delta * eventState.pulseMultiplier;
+        updateShapes(shapes, shapedDelta);
         updateErrorMeter(errorMeter, delta);
         updatePatternState(patternState, delta);
         updateTaboo(tabooState, shapes, delta, gameTime);
+
+        // Random events
+        const triggered = updateEvents(eventState, delta);
+        if (triggered) {
+          applyEventToShapes(triggered, shapes, tabooState.activeIds);
+          if (triggered.type === 'shape_storm') {
+            for (let i = 0; i < 5; i++) shapes.push(spawnRandomShape(W(), H(), score));
+          }
+          if (triggered.type === 'bubble_party') {
+            triggerBubbleBonus(particles, W() / 2, H() / 2);
+          }
+        }
         updateFloatingTexts(delta);
 
         // Tier-up detection

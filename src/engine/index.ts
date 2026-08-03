@@ -9,3 +9,4 @@ export * from './shapes.js';
 export * from './meter.js';
 export * from './patterns.js';
 export * from './taboo.js';
+export * from './events.js';
