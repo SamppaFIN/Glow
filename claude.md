@@ -36,8 +36,8 @@
 
 ## 3. Epicit & tiketit
 
-> Sacred Geometry Rhythm Game — 16 tikettiä, 6 vaihetta.
-> CV-Sitestä irrotettu partikkeli-/geometriamoottori tuottaa visuaalit.
+> Sacred Geometry Rhythm Game — v2.0: 3 tasoa, sääefektit, 432Hz äänet, fysiikkafysiikkaa, secret-tarinat.
+> 16 alkuperäistä tikettiä valmiina. 7 uutta v2.0-tikettiä.
 
 ```json
 {
@@ -47,35 +47,42 @@
       "nimi": "🎮 Pelimoottori",
       "kuvaus": "Game loop (RAF), tilakone (menu/playing/paused/gameover/bonus), input handler, timing window, scoring + combo, virhemittari",
       "tiketit": [1, 2, 3, 4],
-      "valmius": 0
+      "valmius": 100
     },
     {
       "id": "visual",
       "nimi": "✨ Partikkelit & visuaalit",
       "kuvaus": "CV-Sitestä irrotettu geometria+partikkelimoottori (TypeScript), pelikuvioiden pulssi-renderöinti, osuma-/huti-efektit, tabu/bonus-visuaalit",
       "tiketit": [5, 6, 7, 8],
-      "valmius": 0
+      "valmius": 100
     },
     {
       "id": "mechanics",
       "nimi": "🕹️ Pelimekaniikat",
       "kuvaus": "Salainen kuviotunnistin, sacred geometry -salaisuudet (Seed of Life, Vesica Piscis, Metatron's Cube), tabu-mekaniikka, bonustaso + vaikeuskäyrä",
       "tiketit": [9, 10, 11, 12],
-      "valmius": 0
+      "valmius": 100
     },
     {
       "id": "ui",
       "nimi": "🖥️ UI & tallennus",
       "kuvaus": "Menu, HUD (score/combo/mittari), game over, pause, codex-galleria, high scoret (localStorage), asetukset, responsiivisuus + a11y",
       "tiketit": [13, 14, 15],
-      "valmius": 0
+      "valmius": 100
     },
     {
       "id": "deploy",
       "nimi": "🔊 Äänet & Deploy",
       "kuvaus": "Web Audio API -ääniefektit, PWA (manifest + service worker), GitHub Pages, CI/CD, vitest + Playwright-testit",
       "tiketit": [16, 17],
-      "valmius": 0
+      "valmius": 100
+    },
+    {
+      "id": "v2",
+      "nimi": "🔥 v2.0 — Palautekierros",
+      "kuvaus": "3 tasoa, sääefektit, 432Hz äänet, fysiikkaswaippi, hazardit, ambient-efektit",
+      "tiketit": [18, 19, 20, 21, 22, 23, 24],
+      "valmius": 100
     }
   ],
   "tiketit": [
@@ -327,7 +334,130 @@
         "Vitest: scoring, pattern detector, error meter -yksikkötestit",
         "Playwright: peli käynnistyy → osuma → game over -smoke"
       ],
-      "valmius": 0
+      "valmius": 100
+    },
+    {
+      "id": 17,
+      "epic": "v2",
+      "story": "Pelaajana haluan pelissä olevan useita tasoja ja ajastimen",
+      "nimi": "3 tasoa + countdown-laskuri",
+      "effort": "M",
+      "riippuvuudet": [1],
+      "status": "done",
+      "acceptance_criteria": [
+        "3 tasoa (40s each), automaattinen level-up",
+        "Countdown-näyttö HUDissa",
+        "Level 1: rauhallinen, Level 2: sade, Level 3: lumisade + kaikki hazardit",
+        "Level-up: enkelisoinnut + sateenkaariefekti"
+      ],
+      "valmius": 100
+    },
+    {
+      "id": 18,
+      "epic": "v2",
+      "story": "Pelaajana haluan sääefektejä ja elementaalisia haittoja",
+      "nimi": "Sääefektit + 9 hazardia",
+      "effort": "M",
+      "riippuvuudet": [6],
+      "status": "done",
+      "acceptance_criteria": [
+        "Sadetta Level 2:ssa, lumisadetta Level 3:ssa",
+        "9 hazard-tyyppiä: Freeze, Fire, Black Hole, Lightning, Wind, Flood, Overgrowth, Mirror, Vortex",
+        "Freeze jäädyttää kuvion 3s, Fire polttaa, Black Hole imee ja tuhoaa",
+        "Hazardit spawnaavat nopeammin korkeammilla leveleillä"
+      ],
+      "valmius": 100
+    },
+    {
+      "id": 19,
+      "epic": "v2",
+      "story": "Pelaajana haluan kuulla maagisia 432Hz enkelitaajuuksia",
+      "nimi": "432Hz Solfeggio -taajuudet",
+      "effort": "S",
+      "riippuvuudet": [15],
+      "status": "done",
+      "acceptance_criteria": [
+        "432Hz, 528Hz, 639Hz, 741Hz, 852Hz, 963Hz enkelitaajuudet",
+        "Level complete: pyhä sointu (432+540+648Hz)",
+        "Random enkelitooni satunnaisissa tapahtumissa"
+      ],
+      "valmius": 100
+    },
+    {
+      "id": 20,
+      "epic": "v2",
+      "story": "Pelaajana haluan flikata kuvioita sormella ryhmitelläkseni niitä",
+      "nimi": "Swipe-fysiikka kuvioiden ryhmittelyyn",
+      "effort": "S",
+      "riippuvuudet": [2],
+      "status": "done",
+      "acceptance_criteria": [
+        "Touchmove liikuttaa lähellä olevia kuvioita",
+        "Kuviot reagoivat swipe-liikkeeseen etäisyyden mukaan",
+        "Toimii sekä desktopilla (hiiri) että mobiililla (sormi)"
+      ],
+      "valmius": 100
+    },
+    {
+      "id": 21,
+      "epic": "v2",
+      "story": "Pelaajana haluan nähdä palkintokuplia jotka antavat bonuksia",
+      "nimi": "Random reward -kuplat",
+      "effort": "S",
+      "riippuvuudet": [5],
+      "status": "done",
+      "acceptance_criteria": [
+        "Värikkäitä kuplia nousee ruudun alalaidasta",
+        "Kuplat toimivat visuaalisena palkintona",
+        "Kuplia spawnaa tasaisin väliajoin"
+      ],
+      "valmius": 100
+    },
+    {
+      "id": 22,
+      "epic": "v2",
+      "story": "Pelaajana haluan nähdä high scoret selkeästi tummalla taustalla",
+      "nimi": "High score -kontrastikorjaus + secret story",
+      "effort": "S",
+      "riippuvuudet": [14],
+      "status": "done",
+      "acceptance_criteria": [
+        "Top 5: kulta/hopea/pronssi värit, valkoinen teksti",
+        "Game Over: kertoo mitkä secret patternit löytyivät ja miksi",
+        "Teksti luettavissa tummalla taustalla"
+      ],
+      "valmius": 100
+    },
+    {
+      "id": 23,
+      "epic": "v2",
+      "story": "Pelaajana haluan kuviovalikoiman pysyvän monipuolisena",
+      "nimi": "Kuviovariaation korjaus",
+      "effort": "S",
+      "riippuvuudet": [6],
+      "status": "done",
+      "acceptance_criteria": [
+        "Tier 3 sisältää KAIKKI geometriatyypit, ei vain Metatronia",
+        "5 aloituskuviota, 20 max",
+        "Level-up spawnaa 3 tuoretta peruskuviota",
+        "Tier-kynnykset nostettu: 800/3000/8000"
+      ],
+      "valmius": 100
+    },
+    {
+      "id": 24,
+      "epic": "v2",
+      "story": "Pelaajana haluan pelin kertovan selkeästi löytämäni salaisuudet",
+      "nimi": "Secret story + level transition -palaute",
+      "effort": "S",
+      "riippuvuudet": [10],
+      "status": "done",
+      "acceptance_criteria": [
+        "Game Overissa kertomus siitä, mikä secret triggeröityi",
+        "Level transition: LEVEL 2! / LEVEL 3! -animaatio",
+        "VICTORY! -ruutu kun kaikki 3 tasoa läpäisty"
+      ],
+      "valmius": 100
     }
   ]
 }
@@ -337,7 +467,7 @@
 - `effort`: S = tunteja, M = päivä, L = 2–3 päivää
 - `valmius`: 0–100, päivitä kun tiketti valmistuu
 - Pidä tiketit atomeina — jokaisella selkeät hyväksymiskriteerit
-- 5 epiciä, 16 tikettiä — MVP-laajuus
+- 6 epiciä, 24 tikettiä — v1.0 MVP + v2.0 palautekierros
 - Jokaisella tiketillä on `story`-kenttä: "Pelaajana/Kehittäjänä haluan..."
 - **Phase 1:** #5 + #1 → geometriamoottori + game loop (rinnakkain)
 - **Phase 2:** #2 + #6 → input + kuviorenderöinti

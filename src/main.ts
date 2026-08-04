@@ -19,6 +19,9 @@ import {
   triggerComboBurst,
   triggerBubbleBonus,
   triggerRainbowBurst,
+  spawnRain,
+  spawnSnow,
+  spawnRewardBubbles,
 } from './engine/particles.js';
 import { setupInputHandler, evaluateTap, type HitResult } from './engine/input.js';
 import {
@@ -144,6 +147,7 @@ const MAX_LEVEL = 3;
 const hazards: Hazard[] = [];
 const hazardAffected: HazardAffected[] = [];
 let hazardSpawnTimer = 0;
+let weatherTimer = 0;
 let levelComplete = false;
 let levelMessage = '';
 let levelMessageTimer = 0;
@@ -199,6 +203,33 @@ window.addEventListener('keydown', (e) => {
     transitionState(loop, GameState.Paused);
   }
 });
+
+// v2.0: Swipe physics — flick shapes by dragging
+let swipeActive = false;
+let swipeX = 0, swipeY = 0;
+
+canvas.addEventListener('pointermove', (e) => {
+  if (!swipeActive || loop.state !== GameState.Playing) return;
+  const rect = canvas.getBoundingClientRect();
+  const px = e.clientX - rect.left;
+  const py = e.clientY - rect.top;
+  const dx = px - swipeX;
+  const dy = py - swipeY;
+  // Push nearby shapes in swipe direction
+  for (const shape of shapes) {
+    const dist = Math.hypot(shape.x - px, shape.y - py);
+    if (dist < shape.radius * 3) {
+      shape.x += dx * 0.5;
+      shape.y += dy * 0.5;
+    }
+  }
+  swipeX = px;
+  swipeY = py;
+});
+
+canvas.addEventListener('pointerdown', () => { swipeActive = true; });
+canvas.addEventListener('pointerup', () => { swipeActive = false; });
+canvas.addEventListener('pointerleave', () => { swipeActive = false; });
 
 // ── Hit handling ──────────────────────────────────────────────
 function handleHit(shape: Shape, result: HitResult, x: number, y: number): void {
@@ -649,6 +680,7 @@ function startGame(): void {
   hazards.length = 0;
   hazardAffected.length = 0;
   hazardSpawnTimer = 0;
+  weatherTimer = 0;
   startPulse(800);
   transitionState(loop, GameState.Playing);
 }
@@ -849,18 +881,7 @@ startGameLoop(loop, {
           }
         }
 
-        // v2.0: Hazard system
-        hazardSpawnTimer += delta;
-        const hazardInterval = 8 - currentLevel * 1.5; // Faster at higher levels
-        if (hazardSpawnTimer >= hazardInterval) {
-          hazardSpawnTimer -= hazardInterval;
-          const types = getHazardsForLevel(currentLevel);
-          const type = types[Math.floor(Math.random() * types.length)];
-          const target = shapes[Math.floor(Math.random() * shapes.length)];
-          if (target) {
-            hazards.push(spawnHazard(type, target.x, target.y, target));
-          }
-        }
+        // v2.0: Hazard system\n        hazardSpawnTimer += delta;\n        const hazardInterval = 8 - currentLevel * 1.5;\n        if (hazardSpawnTimer >= hazardInterval) {\n          hazardSpawnTimer -= hazardInterval;\n          const types = getHazardsForLevel(currentLevel);\n          const type = types[Math.floor(Math.random() * types.length)];\n          const target = shapes[Math.floor(Math.random() * shapes.length)];\n          if (target) {\n            hazards.push(spawnHazard(type, target.x, target.y, target));\n          }\n        }\n\n        // v2.0: Ambient weather\n        weatherTimer += delta;\n        if (currentLevel >= 2 && weatherTimer > 0.15) { spawnRain(particles, W(), 2); weatherTimer = 0; }\n        else if (currentLevel >= 3 && weatherTimer > 0.2) { spawnSnow(particles, W(), 1); spawnRain(particles, W(), 1); weatherTimer = 0; }\n        else if (weatherTimer > 2) { spawnRewardBubbles(particles, W(), H(), 2); weatherTimer = 0; }
         const hazardResult = updateHazards(hazards, hazardAffected, shapes, delta, W(), H());
         for (const id of hazardResult.shapesToRemove) {
           shapes = shapes.filter(s => s.id !== id);
