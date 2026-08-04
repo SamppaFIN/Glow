@@ -4,20 +4,20 @@
  * Shapes disappear on hit and respawn. Higher tiers unlock over time.
  */
 import { GeometrySymbols } from './geometry.js';
-/** Geometry symbols grouped by tier */
+/** Geometry symbols grouped by tier — tier 3 includes all types */
 export const TIER_SYMBOLS = {
     0: ['flower'], // Simplest: circles
-    1: ['seed', 'vesica'], // Intermediate: Seed of Life, Vesica Piscis
-    2: ['spiral', 'sri'], // Advanced: Golden Spiral, Sri Yantra
-    3: ['metatron'], // Boss: Metatron's Cube
+    1: ['seed', 'vesica', 'flower'], // Intermediate + basics
+    2: ['spiral', 'sri', 'seed', 'vesica'], // Advanced + variety
+    3: ['flower', 'seed', 'vesica', 'spiral', 'sri', 'metatron'], // All types
 };
 /** Tier thresholds based on score */
 export function getTier(score) {
-    if (score >= 5000)
+    if (score >= 8000)
         return 3;
-    if (score >= 2000)
+    if (score >= 3000)
         return 2;
-    if (score >= 500)
+    if (score >= 800)
         return 1;
     return 0;
 }
