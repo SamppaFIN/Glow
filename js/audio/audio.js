@@ -130,4 +130,24 @@ export function stopPulse() { if (pulseInterval) {
     clearInterval(pulseInterval);
     pulseInterval = null;
 } }
+// ── Angelic / Solfeggio frequencies (Hz) ─────────────────────
+// 432Hz = universal harmony, 528Hz = DNA repair / transformation
+// 639Hz = connection, 741Hz = awakening, 852Hz = third eye, 963Hz = crown
+const ANGELIC_FREQS = [432, 528, 639, 741, 852, 963];
+export function playAngelicTone(freq, dur = 0.8) {
+    playTone(freq, dur, 'sine', 0.06);
+    // Add harmonic overtone
+    safeTimeout(() => playTone(freq * 1.5, dur * 0.6, 'sine', 0.03), 100);
+}
+export function playSacredChord() {
+    // 432Hz + harmonic thirds
+    [432, 540, 648].forEach((f, i) => safeTimeout(() => playTone(f, 1.2, 'sine', 0.05), i * 150));
+}
+export function playRandomAngelic() {
+    const f = ANGELIC_FREQS[Math.floor(Math.random() * ANGELIC_FREQS.length)];
+    playAngelicTone(f, 0.6 + Math.random() * 0.6);
+}
+export function playLevelComplete() {
+    [432, 528, 648, 864, 1296].forEach((f, i) => safeTimeout(() => playTone(f, 0.3, 'triangle', 0.06), i * 150));
+}
 //# sourceMappingURL=audio.js.map

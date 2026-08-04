@@ -8,7 +8,8 @@ import { setupInputHandler, evaluateTap } from './engine/input.js';
 import { generateShapeGrid, spawnRandomShape, updateShapes, renderShapes, getTier, } from './engine/shapes.js';
 import { createTabooState, updateTaboo, checkTabooHit, renderTabooWarning, } from './engine/taboo.js';
 import { createEventState, updateEvents, applyEventToShapes, } from './engine/events.js';
-import { unlockAudio, toggleMute, playHitSound, playPerfectSound, playMissSound, playTabooWarning, playComboMilestone, playPatternSound, playGameOverSound, killAllAudio, startPulse, stopPulse, } from './audio/audio.js';
+import { spawnHazard, updateHazards, renderHazards, getHazardsForLevel, } from './engine/hazards.js';
+import { unlockAudio, toggleMute, playHitSound, playPerfectSound, playMissSound, playTabooWarning, playComboMilestone, playPatternSound, playGameOverSound, playLevelComplete, killAllAudio, startPulse, stopPulse, } from './audio/audio.js';
 import { createErrorMeter, registerMiss, registerHit, updateErrorMeter, isGameOver, resetErrorMeter, renderErrorMeter, } from './engine/meter.js';
 import { SACRED_PATTERNS, createPatternState, checkRichPatterns, activatePatternEffect, updatePatternState, } from './engine/patterns.js';
 // ── Canvas setup ──────────────────────────────────────────────
@@ -51,6 +52,17 @@ let spawnTimer = 0;
 const MAX_SHAPES = 15;
 const tabooState = createTabooState();
 const eventState = createEventState();
+// ── v2.0: Levels + Hazards ───────────────────────────────────
+let currentLevel = 1;
+let levelTimer = 0;
+const LEVEL_DURATION = 40; // Seconds per level
+const MAX_LEVEL = 3;
+const hazards = [];
+const hazardAffected = [];
+let hazardSpawnTimer = 0;
+let levelComplete = false;
+let levelMessage = '';
+let levelMessageTimer = 0;
 // ── Input ─────────────────────────────────────────────────────
 const cleanupInput = setupInputHandler(canvas, (tap) => {
     unlockAudio(); // Browser requires user gesture for audio
@@ -310,18 +322,26 @@ function renderGameOver() {
             ctx.fillText(`${icon} ${name}: ${count}`, W() / 2, y);
         }
     }
-    // Top scores
+    // Top scores — FIXED: medal colors on dark bg
     const scores = loadHighScores();
     const tapY = H() * 0.90;
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.font = `bold ${Math.min(W(), H()) * 0.016}px Inter, system-ui, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = `bold ${Math.min(W(), H()) * 0.018}px Inter, system-ui, sans-serif`;
     ctx.fillText('🏆 TOP 5', W() / 2, H() * 0.74);
-    ctx.font = `${Math.min(W(), H()) * 0.014}px Inter, system-ui, sans-serif`;
+    ctx.font = `${Math.min(W(), H()) * 0.016}px Inter, system-ui, sans-serif`;
     for (let i = 0; i < Math.min(5, scores.length); i++) {
         const s = scores[i];
         const icon = GEO_ICONS[s.icon] ?? '🌸';
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.fillText(`${icon} ${s.initials}  ${s.score}  ${s.date}`, W() / 2, H() * 0.78 + i * 14);
+        ctx.fillStyle = i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'rgba(255,255,255,0.6)';
+        ctx.fillText(`${icon} ${s.initials}  ${s.score}  ${s.date}`, W() / 2, H() * 0.78 + i * 16);
+    }
+    // Secret story
+    const secrets = [...patternState.discovered];
+    if (secrets.length > 0) {
+        ctx.fillStyle = 'rgba(255,215,0,0.7)';
+        ctx.font = `${Math.min(W(), H()) * 0.014}px Inter, system-ui, sans-serif`;
+        const names = secrets.map(id => SACRED_PATTERNS.find(p => p.id === id)?.name ?? id);
+        ctx.fillText('🔮 Unlocked: ' + names.join(' · ') + ' — amplified your score!', W() / 2, H() * 0.93);
     }
     // Tap prompt
     if (gameOverReady) {
@@ -341,6 +361,7 @@ function renderPlay() {
     ctx.fillRect(0, 0, W(), H());
     renderShapes(ctx, shapes);
     renderTabooWarning(ctx, shapes, tabooState, gameTime);
+    renderHazards(ctx, hazards, gameTime);
     updateParticles(particles, ctx, loop.delta);
     renderFloatingTexts(ctx);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
@@ -370,6 +391,24 @@ function renderPlay() {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.textAlign = 'left';
     ctx.fillText(`${mins}:${secs.toString().padStart(2, '0')}`, 16, 112);
+    // Level info (top-center)
+    ctx.fillStyle = '#FFD700';
+    ctx.font = `bold ${Math.min(W(), H()) * 0.022}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`Level ${currentLevel}/${MAX_LEVEL}  ·  ${Math.max(0, Math.ceil(LEVEL_DURATION - levelTimer))}s`, W() / 2, 28);
+    // Level message
+    if (levelMessageTimer > 0) {
+        const alpha = Math.min(1, levelMessageTimer);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.font = `bold ${Math.min(W(), H()) * 0.08}px Inter, system-ui, sans-serif`;
+        ctx.fillStyle = '#FFD700';
+        ctx.shadowColor = '#FFD700';
+        ctx.shadowBlur = 30;
+        ctx.fillText(levelMessage, W() / 2, H() / 2);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
     if (combo > 1) {
         ctx.fillStyle = combo >= 50 ? '#FFD700' : combo >= 25 ? '#FF6B6B' : 'rgba(255,255,255,0.5)';
         ctx.font = `bold ${Math.min(W(), H()) * 0.04}px Inter, system-ui, sans-serif`;
@@ -475,6 +514,15 @@ function startGame() {
     eventState.nextEventTimer = 20 + Math.random() * 20;
     eventState.scoreMultiplier = 1;
     eventState.pulseMultiplier = 1;
+    // Reset levels + hazards
+    currentLevel = 1;
+    levelTimer = 0;
+    levelComplete = false;
+    levelMessage = '';
+    levelMessageTimer = 0;
+    hazards.length = 0;
+    hazardAffected.length = 0;
+    hazardSpawnTimer = 0;
     startPulse(800);
     transitionState(loop, GameState.Playing);
 }
@@ -666,6 +714,53 @@ startGameLoop(loop, {
                         triggerBubbleBonus(particles, W() / 2, H() / 2);
                     }
                 }
+                // v2.0: Hazard system
+                hazardSpawnTimer += delta;
+                const hazardInterval = 8 - currentLevel * 1.5; // Faster at higher levels
+                if (hazardSpawnTimer >= hazardInterval) {
+                    hazardSpawnTimer -= hazardInterval;
+                    const types = getHazardsForLevel(currentLevel);
+                    const type = types[Math.floor(Math.random() * types.length)];
+                    const target = shapes[Math.floor(Math.random() * shapes.length)];
+                    if (target) {
+                        hazards.push(spawnHazard(type, target.x, target.y, target));
+                    }
+                }
+                const hazardResult = updateHazards(hazards, hazardAffected, shapes, delta, W(), H());
+                for (const id of hazardResult.shapesToRemove) {
+                    shapes = shapes.filter(s => s.id !== id);
+                    registerMiss(errorMeter);
+                }
+                for (const s of hazardResult.shapesToAdd) {
+                    shapes.push(s);
+                }
+                // v2.0: Level progression
+                levelTimer += delta;
+                if (levelTimer >= LEVEL_DURATION && !levelComplete) {
+                    levelComplete = true;
+                    if (currentLevel < MAX_LEVEL) {
+                        currentLevel++;
+                        levelMessage = `LEVEL ${currentLevel}!`;
+                        levelMessageTimer = 3.0;
+                        levelTimer = 0;
+                        levelComplete = false;
+                        playLevelComplete();
+                        triggerRainbowBurst(particles, W() / 2, H() / 2);
+                        // Clear hazards between levels
+                        hazards.length = 0;
+                        hazardAffected.length = 0;
+                        // Bonus shapes
+                        score += 1000;
+                    }
+                    else {
+                        // Game complete!
+                        levelMessage = 'VICTORY!';
+                        levelMessageTimer = 5.0;
+                        gameOver();
+                    }
+                }
+                if (levelMessageTimer > 0)
+                    levelMessageTimer -= delta;
                 updateFloatingTexts(delta);
                 // Tier-up detection
                 const currentTier = getTier(score);
