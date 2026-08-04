@@ -3,12 +3,12 @@
  * Entry point. Wires engine modules together.
  */
 import { createGameLoop, startGameLoop, GameState, transitionState, } from './engine/game.js';
-import { updateParticles, triggerFizzle, triggerGeometryBurst, triggerComboBurst, triggerBubbleBonus, triggerRainbowBurst, } from './engine/particles.js';
+import { updateParticles, triggerFizzle, triggerGeometryBurst, triggerComboBurst, triggerBubbleBonus, triggerRainbowBurst, spawnRain, spawnSnow, spawnRewardBubbles, } from './engine/particles.js';
 import { setupInputHandler, evaluateTap } from './engine/input.js';
 import { generateShapeGrid, spawnRandomShape, updateShapes, renderShapes, getTier, } from './engine/shapes.js';
 import { createTabooState, updateTaboo, checkTabooHit, renderTabooWarning, } from './engine/taboo.js';
 import { createEventState, updateEvents, applyEventToShapes, } from './engine/events.js';
-import { updateHazards, renderHazards, } from './engine/hazards.js';
+import { spawnHazard, updateHazards, renderHazards, getHazardsForLevel, } from './engine/hazards.js';
 import { unlockAudio, toggleMute, playHitSound, playPerfectSound, playMissSound, playTabooWarning, playComboMilestone, playPatternSound, playGameOverSound, playLevelComplete, killAllAudio, startPulse, stopPulse, } from './audio/audio.js';
 import { createErrorMeter, registerMiss, registerHit, updateErrorMeter, isGameOver, resetErrorMeter, renderErrorMeter, } from './engine/meter.js';
 import { SACRED_PATTERNS, createPatternState, checkRichPatterns, activatePatternEffect, updatePatternState, } from './engine/patterns.js';
@@ -697,13 +697,13 @@ function renderNameEntry() {
         ctx.fillText('Discovered: ' + names.join(', '), w / 2, h * 0.92);
     }
 }
-/** Spawn interval per level — faster each level */
+/** Spawn interval per level — comfortable pace */
 function getSpawnInterval(_elapsed) {
     if (currentLevel === 1)
-        return 2.5;
+        return 4.0; // Chill
     if (currentLevel === 2)
-        return 1.8;
-    return 1.2;
+        return 3.0; // Moderate
+    return 2.5; // Brisk but fair
 }
 // ── Bootstrap ─────────────────────────────────────────────────
 console.log('☀️ Glow v0.1.0 — Phase 2: Playable prototype');
@@ -735,7 +735,33 @@ startGameLoop(loop, {
                         triggerBubbleBonus(particles, W() / 2, H() / 2);
                     }
                 }
-                // v2.0: Hazard system\n        hazardSpawnTimer += delta;\n        const hazardInterval = 8 - currentLevel * 1.5;\n        if (hazardSpawnTimer >= hazardInterval) {\n          hazardSpawnTimer -= hazardInterval;\n          const types = getHazardsForLevel(currentLevel);\n          const type = types[Math.floor(Math.random() * types.length)];\n          const target = shapes[Math.floor(Math.random() * shapes.length)];\n          if (target) {\n            hazards.push(spawnHazard(type, target.x, target.y, target));\n          }\n        }\n\n        // v2.0: Ambient weather\n        weatherTimer += delta;\n        if (currentLevel >= 2 && weatherTimer > 0.15) { spawnRain(particles, W(), 2); weatherTimer = 0; }\n        else if (currentLevel >= 3 && weatherTimer > 0.2) { spawnSnow(particles, W(), 1); spawnRain(particles, W(), 1); weatherTimer = 0; }\n        else if (weatherTimer > 2) { spawnRewardBubbles(particles, W(), H(), 2); weatherTimer = 0; }
+                // v2.0: Hazard system
+                hazardSpawnTimer += delta;
+                const hazardInterval = 14 - currentLevel * 2; // 12s L1, 10s L2, 8s L3
+                if (hazardSpawnTimer >= hazardInterval) {
+                    hazardSpawnTimer -= hazardInterval;
+                    const types = getHazardsForLevel(currentLevel);
+                    const type = types[Math.floor(Math.random() * types.length)];
+                    const target = shapes[Math.floor(Math.random() * shapes.length)];
+                    if (target) {
+                        hazards.push(spawnHazard(type, target.x, target.y, target));
+                    }
+                }
+                // v2.0: Ambient weather
+                weatherTimer += delta;
+                if (currentLevel >= 3 && weatherTimer > 0.15) {
+                    spawnSnow(particles, W(), 1);
+                    spawnRain(particles, W(), 1);
+                    weatherTimer = 0;
+                }
+                else if (currentLevel >= 2 && weatherTimer > 0.15) {
+                    spawnRain(particles, W(), 2);
+                    weatherTimer = 0;
+                }
+                else if (weatherTimer > 3) {
+                    spawnRewardBubbles(particles, W(), H(), 2);
+                    weatherTimer = 0;
+                }
                 const hazardResult = updateHazards(hazards, hazardAffected, shapes, delta, W(), H());
                 for (const id of hazardResult.shapesToRemove) {
                     shapes = shapes.filter(s => s.id !== id);
