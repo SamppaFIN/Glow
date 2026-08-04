@@ -224,4 +224,44 @@ export function triggerComboBurst(p, x, y, level) {
 export function triggerFizzle(p, x, y) {
     triggerBurst(p, x, y, 'rgba(255, 100, 100, 0.6)', { count: 8, speed: 1.5, size: 3, effect: 'fizzle' });
 }
+// ── Ambient weather effects ───────────────────────────────────
+/** Rain drops falling from top — continuous */
+export function spawnRain(p, w, count = 3) {
+    for (let i = 0; i < count; i++) {
+        p.push({
+            x: Math.random() * w, y: -(Math.random() * 80),
+            vx: -0.5, vy: 8 + Math.random() * 4,
+            life: 1, maxLife: 1, size: 1 + Math.random() * 2,
+            color: 'rgba(100,180,255,0.6)', hue: 0,
+            rotation: -0.3, rotationSpeed: 0, behavior: 'burst',
+        });
+    }
+}
+/** Snowflakes drifting down — continuous */
+export function spawnSnow(p, w, count = 2) {
+    for (let i = 0; i < count; i++) {
+        const size = 2 + Math.random() * 5;
+        p.push({
+            x: Math.random() * w, y: -(Math.random() * 200),
+            vx: (Math.random() - 0.5) * 2, vy: 1 + Math.random() * 2,
+            life: 1, maxLife: 1, size,
+            color: 'rgba(255,255,255,0.7)', hue: 0,
+            rotation: Math.random() * Math.PI * 2, rotationSpeed: (Math.random() - 0.5) * 0.02,
+            behavior: 'burst',
+        });
+    }
+}
+/** Reward bubbles that float up and give bonus when tapped */
+export function spawnRewardBubbles(p, w, h, count = 4) {
+    const colors = ['#4ECDC4', '#FFD700', '#A78BFA', '#F472B6', '#60A5FA'];
+    for (let i = 0; i < count; i++) {
+        p.push({
+            x: Math.random() * w, y: h + 20,
+            vx: (Math.random() - 0.5) * 0.8, vy: -(1 + Math.random() * 2),
+            life: 1, maxLife: 1, size: 8 + Math.random() * 8,
+            color: colors[Math.floor(Math.random() * colors.length)], hue: 0,
+            rotation: 0, rotationSpeed: 0, behavior: 'bubble',
+        });
+    }
+}
 //# sourceMappingURL=particles.js.map
