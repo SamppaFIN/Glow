@@ -49,7 +49,7 @@ let tierUpMessage = '';
 let tierUpTimer = 0;
 let gameTime = 0;
 let spawnTimer = 0;
-const MAX_SHAPES = 15;
+const MAX_SHAPES = 20; // Increased for more action
 const tabooState = createTabooState();
 const eventState = createEventState();
 // ── v2.0: Levels + Hazards ───────────────────────────────────
@@ -485,7 +485,7 @@ function renderPlay() {
 }
 // ── State transitions ─────────────────────────────────────────
 function startGame() {
-    shapes = generateShapeGrid(W(), H(), 3);
+    shapes = generateShapeGrid(W(), H(), 5); // Start with 5 shapes
     score = 0;
     combo = 0;
     multiplier = 1.0;
@@ -670,19 +670,13 @@ function renderNameEntry() {
         ctx.fillText('Discovered: ' + names.join(', '), w / 2, h * 0.92);
     }
 }
-/** Spawn interval decreases over time — starts slow, accelerates */
-function getSpawnInterval(elapsed) {
-    if (elapsed < 15)
-        return 3.0; // Chill start
-    if (elapsed < 30)
+/** Spawn interval per level — faster each level */
+function getSpawnInterval(_elapsed) {
+    if (currentLevel === 1)
         return 2.5;
-    if (elapsed < 45)
-        return 2.0;
-    if (elapsed < 60)
-        return 1.5;
-    if (elapsed < 90)
-        return 1.0; // Getting intense
-    return 0.7; // Mayhem
+    if (currentLevel === 2)
+        return 1.8;
+    return 1.2;
 }
 // ── Bootstrap ─────────────────────────────────────────────────
 console.log('☀️ Glow v0.1.0 — Phase 2: Playable prototype');
@@ -749,7 +743,10 @@ startGameLoop(loop, {
                         // Clear hazards between levels
                         hazards.length = 0;
                         hazardAffected.length = 0;
-                        // Bonus shapes
+                        // Fresh shape burst for new level — tier 0/1 variety
+                        for (let i = 0; i < 3; i++) {
+                            shapes.push(spawnRandomShape(W(), H(), 0)); // Force tier 0
+                        }
                         score += 1000;
                     }
                     else {

@@ -13,19 +13,19 @@ import { GeometrySymbolName, GeometrySymbols } from './geometry.js';
  */
 export type ShapeTier = 0 | 1 | 2 | 3;
 
-/** Geometry symbols grouped by tier */
+/** Geometry symbols grouped by tier — tier 3 includes all types */
 export const TIER_SYMBOLS: Record<ShapeTier, GeometrySymbolName[]> = {
   0: ['flower'],                                          // Simplest: circles
-  1: ['seed', 'vesica'],                                   // Intermediate: Seed of Life, Vesica Piscis
-  2: ['spiral', 'sri'],                                    // Advanced: Golden Spiral, Sri Yantra
-  3: ['metatron'],                                         // Boss: Metatron's Cube
+  1: ['seed', 'vesica', 'flower'],                        // Intermediate + basics
+  2: ['spiral', 'sri', 'seed', 'vesica'],                 // Advanced + variety
+  3: ['flower', 'seed', 'vesica', 'spiral', 'sri', 'metatron'], // All types
 };
 
 /** Tier thresholds based on score */
 export function getTier(score: number): ShapeTier {
-  if (score >= 5000) return 3;
-  if (score >= 2000) return 2;
-  if (score >= 500) return 1;
+  if (score >= 8000) return 3;
+  if (score >= 3000) return 2;
+  if (score >= 800) return 1;
   return 0;
 }
 
