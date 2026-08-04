@@ -24,8 +24,8 @@
 ```json
 {
   "projekti": "Glow",
-  "versio": "0.1.0-MVP",
-  "kuvaus": "Sacred Geometry Rhythm Game — napauta pulssaavia geometrisia kuvioita oikealla ajoituksella. Combo, salaiset kuviot, tabu-mekaniikka, bonustasot.",
+  "versio": "0.2.0",
+  "kuvaus": "Sacred Geometry Rhythm Game — v2.0: 3 tasoa, sääefektit, 432Hz äänet, fysiikkafysiikkaa, secret-tarinat.",
   "tyyppi": "selainpeli",
   "tila": "toteutus",
   "tekniikat": ["HTML5", "CSS3", "TypeScript", "Canvas / DOM"],
